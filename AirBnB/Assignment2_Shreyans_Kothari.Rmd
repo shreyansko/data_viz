@@ -1,0 +1,511 @@
+---
+title: "Assignment 2: AirBnB in New York City"
+author: "Shreyans Kothari"
+date: "3/9/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(ggmap)
+library(geojsonsf)
+library(sp)
+library(ggrepel)
+library(leaflet)
+library(leaflet.extras)
+library(leaflet.extras2)
+library(RColorBrewer)
+library(rgeos)
+library(conflicted)
+library(plotly)
+library(DT)
+conflict_prefer("select", "dplyr")
+conflict_prefer("filter", "dplyr")
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+# Unzipping and importing data
+abnb <- "data/airbnb_listings.csv.zip"
+out_dir <- "/Users/shreyanskothari/Desktop/Data Visualization/Assignments/Assignment2/assignment-2-airbnb-shreyansko/data"
+unzip(abnb, exdir = out_dir)
+abnb <- read.csv("./data/airbnb_listings.csv")
+remove(out_dir)
+
+nyc <- geojson_sf("./data/neighbourhoods.geojson")
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+# Data Cleaning and Transformation
+
+## Extracting few useful variables
+abnb <- abnb %>% select(host_id, name, neighbourhood_cleansed, transit, 
+                        property_type, host_listings_count, latitude, 
+                        longitude, room_type, accommodates,
+                        bathrooms, bedrooms, price, availability_365,
+                        number_of_reviews, review_scores_rating,
+                        review_scores_accuracy, review_scores_cleanliness,
+                        review_scores_checkin, review_scores_communication,
+                        review_scores_location, review_scores_value)
+
+# Removing listings that are not listed any day of the year
+abnb <- abnb %>% filter(availability_365 != 0)
+
+```
+
+
+
+## 1 Overall Location
+
+### a) AirBnB Listings in New York City
+```{r, echo=FALSE}
+m <- leaflet() %>% addProviderTiles("CartoDB.PositronNoLabels",
+                                    options = providerTileOptions(minZoom = 11.8)) 
+content <- paste("<b>", abnb$name, "</b><br/>",
+                 "<b>Neighborhood:</b>", abnb$neighbourhood_cleansed," <br/>",
+                 "<b>Room Type:</b>", abnb$room_type, "<br/>",
+                 "<b>Price:</b>", abnb$price, "<br/>",
+                 "<b>Accomodates:</b>", abnb$accommodates, "<br/>",
+                 "<b>Bedrooms:</b>", abnb$bedrooms, "<br/>",
+                 "<b>Bathrooms:</b>", abnb$bathrooms, "<br/>")
+labels <- paste(nyc$neighbourhood, ",", nyc$neighbourhood_group)
+m %>% addPolygons(data = nyc,
+                  fillColor = "black",
+                  weight = 2,
+                  opacity = 1,
+                  color = "white",
+                  dashArray = "3",
+                  fillOpacity = 0.2,
+                  label = labels,
+                  labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "15px",
+                                              direction = "auto")) %>% 
+    addCircleMarkers(data = abnb, #addCircle
+               lng = abnb$longitude, 
+               lat = abnb$latitude,
+               color = '#FF5A60',
+               popup = content,
+               weight = 1.8, # Added this
+               radius = 1, # Added this
+               opacity = 0.4) %>%
+  setView(lng = -73.95, lat = 40.7200, zoom = 12.45)
+
+
+```
+
+This map shows the AirBnB listings in all the boroughs of New York City. I chose to use the same shade of red for the markers as the red in the AirBnB logo. Zoomed out, the points on the map are very difficult to differentiate. To help with this issue, I have added a hover label which tells you the borough and neighborhood when the cursor is hovered over any of the polygons (neighborhoods) on the map. As you zoom in, the markers become more defined
+
+If you click on any point, you will get information about that particular listing as a popup. This popup contains: the title of the listing, the neighborhood, the type of room, the price of the listing, how many people it can accommodate, number of bedrooms, and the number of bathrooms. 
+
+### b) AirBnB Listing Density with Hotspots
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+hotspot <- c("Hell's Kitchen", "East Village", "Financial District", "Williamsburg")
+nyc_sp = as(nyc, "Spatial")
+
+#Getting Center Point of neighborhoods
+cent_hk <- gCentroid(nyc_sp[nyc_sp$neighbourhood == "Hell's Kitchen",])
+cent_ev <- gCentroid(nyc_sp[nyc_sp$neighbourhood == "East Village",])
+cent_fd <- gCentroid(nyc_sp[nyc_sp$neighbourhood == "Financial District",])
+cent_wb <- gCentroid(nyc_sp[nyc_sp$neighbourhood == "Williamsburg",])
+
+
+
+
+m1 <- leaflet(options = leafletOptions(zoomControl = FALSE)) %>%
+  addProviderTiles("CartoDB.Positron", #CartoDB.PositronNoLabels
+                   options = providerTileOptions(maxZoom = 12, minZoom = 12)) 
+m1 %>%  addCircles(cent_hk@coords[[1]]+0.006, cent_hk@coords[[2]], 
+                   radius =  1000, weight = 1,
+                   color = "red", fillOpacity = 0,
+                   label = paste("Hell's Kitchen, Manhattan"),
+                   labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "10px",
+                                              direction = "center",
+                                             permanent = TRUE,
+                                             textOnly = TRUE, 
+                                             sticky = TRUE)) %>%
+  addCircles(cent_ev@coords[[1]], cent_ev@coords[[2]], 
+                   radius =  900, weight = 1,
+                   color = "red", fillOpacity = 0, #01395e #0.2
+                   label = paste("East Village, Manhattan"),
+                   labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "10px",
+                                              direction = "center",
+                                             permanent = TRUE,
+                                             textOnly = TRUE, 
+                                             sticky = TRUE)) %>%
+  addCircles(cent_fd@coords[[1]], cent_fd@coords[[2]], 
+                   radius =  700, weight = 1,
+                   color = "red", fillOpacity = 0,
+                   label = paste("Financial District, Manhattan"),
+                   labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "10px",
+                                              direction = "center",
+                                             permanent = TRUE,
+                                             textOnly = TRUE, 
+                                             sticky = TRUE)) %>%addCircles(cent_wb@coords[[1]]-0.009, cent_wb@coords[[2]]+0.007, 
+                   radius =  800, weight = 1,
+                   color = "red", fillOpacity = 0,
+                   label = paste("Williamsburg, Brooklyn"),
+                   labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "10px",
+                                              direction = "center",
+                                             permanent = TRUE,
+                                             textOnly = TRUE, 
+                                             sticky = TRUE)) %>%
+  addCircleMarkers(data = abnb, lng = abnb$longitude, 
+                        lat = abnb$latitude, 
+                        weight = 0, radius = 1,
+                        fillOpacity =0.00189,
+                        fillColor =  "red" ) %>%
+    addHeatmap(data = abnb, lng = abnb$longitude, 
+               lat = abnb$latitude,
+               blur = 30, max = 130, minOpacity = -100, ## 160?
+               radius = 10, gradient = "YlOrRd")%>%
+  setView(lng = -73.991, lat = 40.7500, zoom = 12.45)
+#FF5A60
+
+```
+ 
+This map depicts the density of AirBnB listings in New York City. The density is depicted by a gradient of red-yellow: lighter densities (less listings) are represented by yellow and higher densities (more listings) are represented by red.
+
+In the map, I have highlighted 4 high density areas, aka, the hotspots. These are listed here (in descending order of density):
+  - Hell's Kitchen 
+  - East Village
+  - Williamsburg
+  - Financial District
+
+There's a big difference in number of listings between Hell's Kitchen and East Village. Listings in Williamsburg are significantly less than Hell's Kitchen and East Village listings, and listings in the Financial District are less than listings in Williamsburg. I have represented these four hotspots by the big red circles. These circles' sizes vary depending on the density of listing in that neighborhood. The user can explore other boroughs of NYC by holding and dragging the map with their cursor. 
+
+The shading and gradation of the listing density in this dynamic interactive map might not be the clearest, so I am also including a static map with the density:
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+## Clearer Density
+map_nyc <- get_map("Manhattan",
+                            zoom = 12,
+                            source = "stamen",
+                            maptype = "terrain")
+g <- ggmap(map_nyc)
+g + stat_density2d(data = abnb, geom = "polygon", 
+                   aes(x = as.numeric(longitude), y = as.numeric(latitude), 
+                       fill=..level..,alpha=..level..)) + 
+  scale_fill_gradient(low = "yellow", high = "red")+  
+  labs(x = NULL, y = NULL, fill = "AirBnB Density") +
+  theme_void() +  guides(alpha = "none") +   
+  geom_label_repel(data = as.data.frame(cent_hk), mapping = aes(x = cent_hk@coords[[1]]+0.006,  y = cent_hk@coords[[2]], label = "Hell's Kitchen"), family = 'Times', size = 2.5)  +
+  geom_label_repel(data = as.data.frame(cent_ev), aes(x = cent_ev@coords[[1]]+0.0069,  y = cent_ev@coords[[2]], label = "East Village"), family = 'Times', size = 2.5) +
+  geom_label_repel(data = as.data.frame(cent_wb), aes(x = cent_wb@coords[[1]],  y = cent_wb@coords[[2]], label = "Williamsburg"), family = 'Times', size = 2.5) +
+  geom_label_repel(data = as.data.frame(cent_fd), aes(x = cent_fd@coords[[1]],  y = cent_fd@coords[[2]], label = "Financial District"), family = 'Times', size = 2.5)
+```
+
+This map has clear gradation in the density of AirBnB listings. Just as the hot-spots in the interactive map, this static highlights Hell's Kitchen having the highest density of listings, followed by East Village, and then  Williamsburg. One big difference is that this map does not highlight the Financial District as one of the hot-spots; I believe that has to do with the min/max intensity of the density. The stat_denisty_2d function automatically picks the density scale, whereas I had to manually pick the scale in the leaflet interactive density map. This could also be due to the fact that the stat_density2d function is removing a few rows (~11,000 rows) because it thinks the dataframe contains non-finite values, even when it doesn't. I passed the data frame through various checks to ensure there were no missing/infinite/null/string, etc. values and it passed all of those checks.
+
+## 2 Renting out your apartment vs. permanent rentals
+
+### a) Sporadic vs. year-round NYC AirBnB Listings
+
+```{r, echo=FALSE}
+# Joining abnb and nyc  
+abnb_nyc <- left_join(abnb, nyc, by = c("neighbourhood_cleansed" = "neighbourhood")) 
+
+# Creating new column for months the listing is available in a year
+abnb_nyc <- abnb_nyc %>% 
+  mutate(listing_months = availability_365/30.417) %>%
+  filter(availability_365!= 0) %>% 
+  mutate(percent_year = availability_365/365 * 100) %>%
+  mutate(listing_months = ceiling(listing_months)) %>%
+  mutate(perm = ifelse(listing_months <10, "<10 months", listing_months),
+         perm = ifelse(listing_months ==10, "10 months", perm),
+         perm = ifelse(listing_months ==11, "11 months", perm),
+         perm = ifelse(listing_months ==12, "12 months", perm))
+
+#ifelse(listing_months>1, 0, round(listing_months))
+```
+
+
+#### Borough-wise comparision of how long AirBnB rentals are listed
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#pal_n = colorFactor(c("#ffe91f", "#f59d31", "#ff2424"), 
+ #                 domain = abnb_nyc_perm$perm,ordered=FALSE)
+#color_n = pal(abnb_nyc_perm$perm)
+
+neighborhood_listings <- abnb_nyc %>% group_by(as.factor(listing_months),
+                                               neighbourhood_group) %>%
+  summarise(no_listings = n())  %>% 
+  rename("list_months" = "as.factor(listing_months)") 
+
+tot_neighborhood_listings <- neighborhood_listings %>% group_by(neighbourhood_group) %>% summarise(tot_listings = sum(no_listings))
+neighborhood_listings <- left_join(neighborhood_listings, tot_neighborhood_listings, by = "neighbourhood_group")
+
+plot <- neighborhood_listings %>%
+  ggplot(aes(x = neighbourhood_group, 
+             y = no_listings, 
+             fill = as.factor(list_months), 
+             text=(paste('<b>Borough:</b>', neighborhood_listings$neighbourhood_group, '<br>',
+                         '<b>Months Listed:</b>', neighborhood_listings$list_months, '<br>',
+                         '<b>Listings:</b>', neighborhood_listings$no_listings, '<br>',
+                         '<b> Percent of', neighborhood_listings$neighbourhood_group,'Listings:</b>', round(100*neighborhood_listings$no_listings/neighborhood_listings$tot_listings, digits = 2), "%")))) + 
+  geom_histogram(stat = "identity", position = "fill", alpha = 0.8
+               ) + 
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = NULL, y = "Percent of AirBnB Listings",
+       caption = "Days were rounded up for Months; Example- anything more than 11 months (11.1, 11.5, 11.9, etc.) included in 12 months",
+       title = "Number of Months AirBnB Rental is Listed in NYC Boroughs")+ 
+  guides(fill=guide_legend(title="Months Listed")) + 
+  scale_fill_manual(values = c("#44349e", "#24576D", "#199446", 
+                               "#71e37f", "#099DD7", "#a183f2", 
+                               "#ff73f8", "#ffb4a8", "#e3e35b", 
+                               "#ff9b54", "#ff654d", "#d93f4a")) + 
+  theme_minimal() +
+  theme(legend.justification = 0.05,
+        plot.title = element_text(size = 15),
+        plot.caption = element_text(size = 7),
+        panel.grid.minor.x =element_blank(),
+        panel.grid.major.x =element_blank())
+
+ggplotly(plot, tooltip = "text")
+
+```
+
+This visualization compares the AirBnB listings in each borough of New York City on the basis of how long one can rent them out. The different colors represent the number of months a listing can be rented. For the sake of the visualization, the days have been rounded up such that any days less than 30 have been included in 1 month, any more than 1 but less than 2 months have been included in 2 months, and so on. 
+
+In the context of this visualization, I am considering both permanent (12 months) and semi-permanent (10 months and/or 11 months) listings. Based on the percentage of total listings in each borough, Staten Island has the largest percentage of AirBnB listings that are semi-permanent. After Staten Island, Bronx has the next largest semi-permanent year-round listings. If considering only permanent listings (12 months), Bronx has the highest percentage of permanent listings, followed by Queens, then Staten Island, then Manhattan, and finally Brooklyn. 
+
+The visualization is interactive: the hover label tells you the borough, which category (Months listed) does it represent, number of listings in that category, and percent of listings in that category.
+
+It is important to note that this visualization is comparing percentages of listings for each borough by month. When we look at the absolute values of listings, we get a slightly different story:
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+plot1 <- neighborhood_listings %>%
+  ggplot(aes(x = reorder(neighbourhood_group, -no_listings), 
+             y = no_listings, 
+             fill = as.factor(list_months), 
+             text=(paste('<b>Borough:</b>', neighborhood_listings$neighbourhood_group, '<br>',
+                         '<b>Months Listed:</b>', neighborhood_listings$list_months, '<br>',
+                         '<b>Listings:</b>', neighborhood_listings$no_listings, '<br>',
+                         '<b> Percent of', neighborhood_listings$neighbourhood_group,'Listings:</b>', round(100*neighborhood_listings$no_listings/neighborhood_listings$tot_listings, digits = 2), "%")))) + 
+  geom_histogram(stat = "identity", position = "stack", alpha = 0.8
+               ) + 
+  #scale_y_continuous(labels = scales::percent_format()) +
+  labs(x = NULL, y = "Number of AirBnB Listings",
+       caption = "Days were rounded up for Months; Example- anything more than 11 months (11.1, 11.5, 11.9, etc.) included in 12 months",
+       title = "Number of Months AirBnB Rental is Listed in NYC Boroughs")+ 
+  guides(fill=guide_legend(title="Months Listed")) + 
+  scale_fill_manual(values = c("#44349e", "#24576D", "#199446", 
+                               "#71e37f", "#099DD7", "#a183f2", 
+                               "#ff73f8", "#ffb4a8", "#e3e35b", 
+                               "#ff9b54", "#ff654d", "#d93f4a")) + 
+  theme_minimal() +
+  theme(legend.justification = 0.05,
+        plot.title = element_text(size = 15),
+        plot.caption = element_text(size = 7),
+        panel.grid.minor.x =element_blank(),
+        panel.grid.major.x =element_blank())
+
+
+ggplotly(plot1, tooltip = "text")
+```
+
+This visualization is similar to the last one, with the only difference being we are using position = "stack" instead of position = "fill". This visualization is interactive as well; the user has the ability to zoom into Bronx or Staten Island by dragging their cursor and creating a rectangle over the respective visualization. This can be done as many times as the user wants to zoom in. The hover-cursor still provides additional information, including the percentage of listings in each borough for each monthly category. 
+
+Based on the absolute values of listings, Manhattan has the most number of both permanent (12 months) and semi-permanent (10+ months) listings, followed by Brooklyn, and then Queens.
+
+
+#### Map Comparing Sporadic vs Year-Round AirBnB Listings
+```{r, echo=FALSE}
+### Permanent vs not-perm
+
+abnb_nyc_nonperm <- abnb_nyc %>% filter(perm=="<10 months")
+abnb_nyc_perm <- abnb_nyc %>% filter(perm!="<10 months")
+
+pal = colorFactor(c("#ffe91f", "#f59d31", "#ff2424"), 
+                  domain = abnb_nyc_perm$perm,ordered=FALSE)
+color_perm = pal(abnb_nyc_perm$perm)
+
+pal1 = colorFactor(c("#37ed6d"), 
+                  domain = abnb_nyc_nonperm$perm,ordered=FALSE)
+
+pal_perm = colorFactor(c("#37ed6d", "#ffe91f", "#f59d31", "#ff2424"), 
+                  domain = abnb_nyc$perm,ordered=FALSE)
+
+  #37ed6d = Green
+  #ffe91f = yellow
+  #f59d31 = orange
+  #ff2424 = red
+
+
+leaflet() %>%
+ addMapPane("left", zIndex = 0) %>%
+  addMapPane("right", zIndex = 0) %>%
+  addProviderTiles("CartoDB.Positron", group="carto", layerId = "baseid_r",
+                   options = pathOptions(pane = "right"))%>%
+  addProviderTiles("CartoDB.Positron", group="carto", layerId = "baseid_l",
+                   options = pathOptions(pane = "left")) %>%
+  addPolygons(data = nyc,
+                  fillColor = "black",
+                  weight = 1,
+                  opacity = 1,
+                  color = "white",
+                  dashArray = "3",
+                  fillOpacity = 0.1,
+                  label = labels,
+                  labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "15px",
+                                              direction = "auto"),
+              group = "green",
+              options = pathOptions(pane = "left")) %>% 
+  addPolygons(data = nyc,
+                  fillColor = "black",
+                  weight = 1,
+                  opacity = 1,
+                  color = "white",
+                  dashArray = "3",
+                  fillOpacity = 0.1,
+                  label = labels,
+                  labelOptions = labelOptions(style = list("font-weight" = "normal",
+                                              padding = "3px 8px"),
+                                             textsize = "15px",
+                                              direction = "auto"),
+              group = "yellow-red",
+              options = pathOptions(pane = "right")) %>%
+   addCircleMarkers(data = abnb_nyc_nonperm, lat = abnb_nyc_nonperm$latitude, 
+                   lng = abnb_nyc_nonperm$longitude, 
+                   fillColor = "#50C878",
+                   weight = 2, color = "#37ed6d",
+                   fillOpacity = 0.2,radius = 2,
+                   opacity = 0.5,
+                    group = "green",
+                   options = pathOptions(pane = "left")) %>%
+  addLegend("topright", pal = pal_perm, 
+            values = abnb_nyc$perm, opacity = 1, 
+            title = "Sporadic VS Year-Round Listings",
+            group = "yellow-red") %>%
+     addCircleMarkers(data = abnb_nyc_perm, lat = abnb_nyc_perm$latitude, 
+                   lng = abnb_nyc_perm$longitude, 
+                   fillColor = color_perm,
+                   weight = 2, color = color_perm,
+                   fillOpacity = 0.5,radius = 2,
+                   opacity = 0.5,
+                    group = "yellow-red",
+                   options = pathOptions(pane = "right")) %>%
+  addLayersControl(overlayGroups = c("green","yellow-red")) %>%
+  addSidebyside(layerId = "sidecontrols",
+                rightId = "baseid_r",
+                leftId = "baseid_l") %>%
+  setView(lng = -73.98, lat = 40.7280, zoom = 13, options = pathOptions(pane = "right"))
+
+
+```
+
+This map compares sporadic vs year-round AirBnB listings in New York City. In the context of this map, year-round considers both permanent (12 months) and semi-permanent (10 months and/or 11 months) listings. The map allows for an easy comparison using the slider in the middle. The user can compare sporadic and year-round listings by dragging the slider to the left or the right. 
+
+When the cursor is hovered over the map, the user will see a popup label with the name of the neighborhood and the borough. This allows the user to see which neighborhoods have the most permanent or semi-permanent (or sporadic) listings.
+
+On the top-right, a small legend has been placed for the ease of the user of this map. It depicts what the different circle markers on the map represent. The green markers represent all listings that are listed for less than 10 months in a year. All yellow markers represent listings that are available for up to 10 months. Orange represent listings available for more than 10 and up to 11 months, and the red markers represent listings available for more than 11 months or all year-round. 
+
+Based on this map, we can safely say that in all boroughs, most of the apartments are listed sporadically (more green points) than year-round (yellow-red). When analyzing just the semi-permanent/permanent listings, we can see that most of the neighborhoods in Manhattan have these year-round listings. A lot of them are concentrated below Central Park, in Hell's Kitchen, the Theater District, Murray Hill, and the Financial District. In Brooklyn, the year-round listings seem to be quite spread out evenly, except for a small concentration in Williamsburg. Similarly in Queens, they seem to be evenly spread out. In Bronx and Staten Island, there seem to be very few semi-permanent/permanent AirBnB listings, quite contrasting to what the first visualization (that was considering percentages of total listings in each borough) was concluding. 
+ 
+### b) Data table of top hosts (10 and more listings)
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Removing Commas
+abnb_nyc$price <- gsub('[\\,]', '', abnb_nyc$price)
+
+# Removing Dollar Sign
+abnb_nyc$price <- gsub('[\\$]', '', abnb_nyc$price)
+
+# Converting Character to numeric
+abnb_nyc$price <- as.numeric(abnb_nyc$price)
+
+hosts <- abnb_nyc %>% group_by(host_id) %>% 
+  summarise(listings = unique(host_listings_count), 
+                                             avg_price = round(mean(price), 2),
+                                             avg_monthly_inc = avg_price*listings*30)
+
+hosts <- hosts %>% filter(listings >= 10)
+hosts <- hosts[order(-hosts[,"listings"]),]
+datatable(hosts)
+```
+
+This data table shows the top AirBnB hosts (those with 10 or more listings), with the number of listings under them, the average nightly price they charge, and the estimated average monthly total income from these listings. The table is sorted in descending order with the highest number of listings at the top. 
+
+
+## 3) Top Reviewed Rentals
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+
+# Top  100 best reviewed rentals
+top_rated <- abnb_nyc %>% filter(!is.na(review_scores_rating)) %>% mutate(rating = round(10*(review_scores_accuracy+review_scores_cleanliness+review_scores_checkin+review_scores_communication+review_scores_location+review_scores_value)/6)) %>% filter(number_of_reviews >=100)
+top_rated <-  top_rated[order(-top_rated[,"review_scores_rating"]),]
+top_rated <- head(top_rated, 100)
+
+most_expensive <- abnb_nyc %>% filter(!is.na(price)) 
+most_expensive <-  most_expensive[order(-most_expensive[,"price"]),]
+most_expensive <- head(most_expensive, 100)
+
+pal_rating <- colorFactor("#FF5A60", domain = top_rated$review_scores_rating,ordered=FALSE)
+pal_expensive <- colorFactor("#0c7d3c", domain = most_expensive$price,ordered=FALSE)
+pal_r_c <- colorFactor(c("#FF5A60", "#0c7d3c"), domain = c(top_rated$review_scores_rating, most_expensive$pri),ordered=FALSE)
+color_rating <- pal_rating(top_rated$review_scores_rating)
+color_expensive <- pal_expensive(most_expensive$price)
+
+content_rating <- paste("<b>Neighborhood:</b>", top_rated$neighbourhood_cleansed," <br/>",
+                 "<b>Room Type:</b>", top_rated$room_type, "<br/>",
+                 "<b>Rating:</b>", top_rated$review_scores_rating, "<br/>",
+                 "<b>Price:</b>", top_rated$price, "<br/>",
+                 "<b>Bedrooms:</b>", top_rated$bedrooms, "<br/>",
+                 "<b>Bathrooms:</b>", top_rated$bathrooms, "<br/>")
+
+content_expensive <- paste("<b>Neighborhood:</b>", most_expensive$neighbourhood_cleansed," <br/>",
+                 "<b>Room Type:</b>", most_expensive$room_type, "<br/>",
+                 "<b>Rating:</b>", most_expensive$review_scores_rating, "<br/>",
+                 "<b>Price:</b>", most_expensive$price, "<br/>",
+                 "<b>Bedrooms:</b>", most_expensive$bedrooms, "<br/>",
+                 "<b>Bathrooms:</b>", most_expensive$bathrooms, "<br/>")
+
+leaflet() %>%
+  addProviderTiles("CartoDB.Positron")%>%
+   addCircleMarkers(data = top_rated, lat = top_rated$latitude, 
+                   lng = top_rated$longitude, 
+                   weight = 2, color = color_rating,
+                   fillOpacity = 0.2,radius = 4,
+                   opacity = 0.5,
+                   popup = content_rating,
+                   group = "Top Rated") %>%
+     addCircleMarkers(data = most_expensive, lat = most_expensive$latitude, 
+                   lng = most_expensive$longitude, 
+                   weight = 2, color = color_expensive,
+                   fillOpacity = 0.2,radius = 4,
+                   opacity = 0.5,
+                    popup = content_expensive,
+                   group = "Most Expensive") %>%
+  addLayersControl(overlayGroups = c("Top Rated","Most Expensive")) %>%
+  setView(lng = -73.98, lat = 40.7280, zoom = 13)%>%
+  addLegend("topright", colors = c("#FF5A60", "#0c7d3c"),
+            labels = c("Best Reviewed Rentals", "Most Expensive Rentals"),
+            opacity = 1, 
+            title = "Top 100 Reviewed Rentals")
+
+    
+
+```
+
+This interactive map represents the top 100 best reviewed and most expensive rentals in New York City. Most Expensive are represented by the green circles and Top Best Reviewed are represented by the red circles. The tooltip, which pops-up when the user clicks on any of the markers on the map, presents information about that listing: Neighborhood, Room Type, Rating, Price, Number of Bedrooms, and Number of Bathrooms. 
+
+In getting the 100 best reviewed listings, I also filtered for listings which had total number of reviews equal to, or more than, 100. I did this because the number of reviews make a huge difference in the actual rating. A 100 rating score for a listing with 4 reviews is vastly different from a 100 rating score for a listing with 100+ reviews. 
+
+Finally, the users can use the layer control option on the top right to choose which group they want to visualize: options are to see both top rated and most expensive together (default), just one of the two, or neither.
