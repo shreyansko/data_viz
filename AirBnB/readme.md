@@ -1,7 +1,7 @@
 # Assignment 2: AirBnB in New York City
 
 # Data
-
+ 
 ## AirBnB
 
 The data for AirBnB contains detailed information on all of the approximately fifty thousand private apartment listings for rent through the site in New York City. The data is for a time before the COVID pandemic because I wanted to remove that additional complication for data analysis.
