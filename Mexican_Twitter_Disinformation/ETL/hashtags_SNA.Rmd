@@ -1,0 +1,305 @@
+---
+title: "tweets_SNA"
+author: "Shreyans Kothari"
+date: "4/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(igraph)
+library(ggnetwork)
+library(tidygraph)
+library(visNetwork)
+```
+
+
+```{r}
+setwd("/Users/shreyanskothari/Desktop/Data Visualization/ETL")
+hashtags_2011 = read.csv("hashtags_2011.csv")
+hashtags_2021 = read.csv("hashtags_2021.csv")
+
+```
+
+```{r}
+hashtags_2011 <- hashtags_2011 %>% select(-"X",-"hashtags", -"split_hash")
+hashtags_2021 <- hashtags_2021 %>% select(-"X",-"X.1")
+```
+
+```{r}
+#2011
+hash_2011 = t(as.matrix(hashtags_2011)) %*% as.matrix(hashtags_2011)
+x_2011 <- as.matrix(hash_2011)
+degree_x_2011 <- graph.adjacency(x_2011, mode ="undirected",diag=F)
+
+#2021
+hash_2021 = t(as.matrix(hashtags_2021)) %*% as.matrix(hashtags_2021)
+x_2021 <- as.matrix(hash_2021)
+degree_x_2021 <- graph.adjacency(x_2021, mode ="undirected", diag = F)
+
+```
+
+
+```{r}
+p1 = plot(network, layout=layout.sphere, main="sphere")
+p2 = plot(delete.vertices(simplify(degree_x_2011), degree(simplify(degree_x_2011))==0))
+p3 = plot(delete.vertices(simplify(degree_x_2021), degree(simplify(degree_x_2021))==0), layout= layout.auto)
+p4 = plot(delete.vertices(simplify(degree_x_2021), degree(simplify(degree_x_2021))==0), layout= layout.auto, vertex.size=10)
+p5 = plot(delete.vertices(simplify(degree_x_2011), degree(simplify(degree_x_2011))==0), layout= layout.auto, vertex.size=10)
+p6 = plot(delete.vertices(simplify(degree_x_2021), degree(simplify(degree_x_2021))==0), layout= layout_nicely, vertex.size=10)
+
+p7 = plot(delete.vertices(simplify(degree_x_2011), degree(simplify(degree_x_2021))==0), layout= layout_nicely, vertex.size=5, label.size = 2)
+
+p_2011 = plot(delete.vertices(simplify(degree_x_2011), degree(simplify(degree_x_2011))==0), layout= layout.davidson.harel, vertex.size=3, curved = F, asp = 0, main = "2011 Hashtags",vertex.label.cex = 0.8, vertex.label.dist = 0.4, vertex.label.color = "black")
+
+p_2021 = plot(delete.vertices(simplify(degree_x_2021), degree(simplify(degree_x_2021))==0), layout= layout.davidson.harel, vertex.size=3, curved = F, asp = 0, main = "2021 Hashtags",vertex.label.cex = 0.55, vertex.label.dist = 0.6, vertex.label.color = "black")
+
+
+# 2021 With ALL nodes
+plot(simplify(graph_2021), layout= layout.davidson.harel, vertex.size=3, curved = F, asp = 0, main = "2021 Hashtags",vertex.label.cex = 0.55, vertex.label.dist = 0.6, vertex.label.color = "black")
+
+
+```
+
+# Network without unconnected nodes 
+```{r}
+graph_2011 <- delete.vertices((degree_x_2011), degree((degree_x_2011))==0)
+graph_2021 <- delete.vertices((degree_x_2021), degree((degree_x_2021))==0)
+
+```
+
+
+
+
+# Girvan-Neuman
+```{r}
+
+
+set.seed(12)
+# Girvan-Newman community detection algorithm
+gn_2011 = edge.betweenness.community(graph_2011, directed = FALSE)
+
+```
+
+```{r}
+plot(gn, (graph_2011), layout= layout.davidson.harel, vertex.size=3, curved = F, asp = 0, vertex.label.cex = 0.55, edge.color = rgb(0,0,0,.25), main = "Girvan-Neuman")
+```
+
+
+# Random Walk
+```{r}
+set.seed(12)
+walk_2011 = walktrap.community(graph_2011)
+```
+
+
+```{r}
+vis_graph_2011 <- toVisNetworkData(graph_2011)
+nodes_2011 <- vis_graph_2011$nodes
+edges_2011 <- vis_graph_2011$edges
+
+
+vis_graph_2021 <- toVisNetworkData(graph_2021)
+nodes_2021 <- vis_graph_2021$nodes
+edges_2021 <- vis_graph_2021$edges
+
+# OR directly input igraph object to visIgraph()
+
+```
+
+```{r}
+visNetwork(vis_graph_2021$nodes, vis_graph_2021$edges) %>% 
+  visIgraphLayout(layout = "layout_with_fr") %>% 
+  visEdges(arrows = "middle")
+
+visNetwork(nodes_2011, edges_2011)%>% visOptions(selectedBy = "label", 
+                                                                                                                  highlightNearest = T, 
+                                                                                                                  nodesIdSelection = T)%>%
+    visEdges(physics = F, smooth = F) %>% visIgraphLayout(layout = "layout.davidson.harel") %>% visNodes(labelHighlightBold = T, label = nodes_2011$label)
+
+##
+visNetwork(nodes_2011, edges_2011, background = "#bee4fb")%>% visOptions(highlightNearest = T)%>%
+    visEdges(physics = F, smooth = F, color = "#082e45", shadow = T, width = 2) %>% visIgraphLayout(layout = "layout.davidson.harel") %>% visNodes(labelHighlightBold = T, label = nodes_2011$label, level = 0, font = '14px arial red', color = "#1DA1F2" , shadow =c(T), size = 45, borderWidthSelected = 2) 
+
+###
+visNetwork(nodes_2011, edges_2011, background = "#bee4fb")%>% visOptions(highlightNearest = T)%>%
+    visEdges(physics = F, smooth = F, color = "#082e45", shadow = T, width = 2, ) %>% visIgraphLayout(layout = "layout.davidson.harel") %>% visNodes(labelHighlightBold = T, label = nodes_2011$label, level = 0, color = "#1DA1F2" , shadow =T, size = 45, borderWidthSelected = 2) #bee4fb
+
+
+%>%
+  visInteraction(hover = T) %>%
+  visEvents(hoverEdge = "function(e){
+    this.body.data.edges.update({id: e.edge, font: {size : 14}});
+  }") %>%
+  visEvents(blurEdge = "function(e){
+    this.body.data.edges.update({id: e.edge, font: {size : 0}});
+  }")
+
+###
+
+visNetwork(nodes_2011, edges_2011, background = "#bee4fb")%>% visOptions(highlightNearest = T)%>%
+    visEdges(physics = F, smooth = F, color = "#082e45", shadow = T, width = 2, ) %>% visIgraphLayout(layout = "layout.davidson.harel") %>% 
+    visNodes(labelHighlightBold = T, level = 0, color = list(background ="#1DA1F2", highlight = "#91d5ff") , shadow =T, size = 45, borderWidthSelected = 2, font = '40px arial white') %>%
+    visInteraction(hover = T) %>% 
+    visEvents(blurNode  = "function(e){
+            var label_info = this.body.data.nodes.get({
+            fields: ['label', 'label_long'],
+            filter: function (item) {
+            return item.id === e.node
+            },
+            returnType :'Array'
+            });
+            this.body.data.nodes.update({id: e.node, label : label_info[0].label_long, label_long : label_info[0].label});
+  }")
+
+###
+
+visEvents(selectNode  = "function(e){
+            var label_info = this.body.data.nodes.get({
+            fields: ['label', 'label_long'],
+            filter: function (item) {
+            return item.id === e.node
+            },
+            returnType :'Array'
+            });
+            this.body.data.nodes.update({id: e.node, label : label_info[0].label_long, label_long : label_info[0].label});
+            }") %>% 
+  visEvents(blurNode  = "function(e){
+            var label_info = this.body.data.nodes.get({
+            fields: ['label', 'label_long'],
+            filter: function (item) {
+            return item.id === e.node
+            },
+            returnType :'Array'
+            });
+            this.body.data.nodes.update({id: e.node, label : label_info[0].label_long, label_long : label_info[0].label});
+  }"
+
+
+  
+  
+  output$hashtag_network_interactive <- renderVisNetwork({
+    visNetwork(networkYearInput_interactive()$nodes, networkYearInput_interactive()$edges, background = "#5BBCD6",
+               main = list(paste(input$year_interactive, " interactive hashtags network"), "white"), submain = "Unconnected nodes not included")%>% visOptions(highlightNearest = T)%>%
+      visEdges(physics = F, smooth = F, color = "#082e45", shadow = T, width = 2 ) %>% visNetwork::visIgraphLayout("layout.davidson.harel") %>% #layout.davidson.harel
+      visNodes(labelHighlightBold = T, level = 0, size = input$nodes_size, color = list(background ="#F2AD00", highlight = "#F98400") , shadow =T, borderWidthSelected = 2, 
+               font = list(size = input$nodes_size, color =  "white")) %>%
+      visInteraction(hover = T, navigationButtons = TRUE) %>%  
+      visEvents(blurNode  = "function(e){
+          var label_info = this.body.data.nodes.get({
+          fields: ['label', 'label_long'],
+          filter: function (item) {
+          return item.id === e.node
+          },
+          returnType :'Array'
+          });
+          this.body.data.nodes.update({id: e.node, label : label_info[0].label_long, label_long : label_info[0].label});
+                }")
+  
+  
+```
+
+%>%
+    visEvents(selectNode  = "function(e){
+            var label_info = this.body.data.nodes.get({
+            fields: ['label', 'label_long'],
+            filter: function (item) {
+            return item.id === e.node
+            },
+            returnType :'Array'
+            });
+            this.body.data.nodes.update({id: e.node, label : label_info[0].label_long, label_long : label_info[0].label});
+            }") %>% 
+
+
+```{r}
+set.seed(2105)
+hashnet_2011 <- ggnetwork(x_2011, layout = "fruchtermanreingold", cell.jitter = 1)
+hashnet_2021 <- ggnetwork(x_2021, layout = "fruchtermanreingold", cell.jitter = 0.1)
+```
+
+
+```{r}
+#2011
+ggplot(hashnet_2011, aes(x, y, xend = xend, yend = yend)) +
+     geom_edges(alpha = 0.5) +
+     geom_nodes(size = 15, color = "black") +
+     geom_nodetext(aes(label = vertex.names), fontface = "bold", color = 'white') +
+    theme_blank() +
+  theme(panel.background = element_rect(fill = "gray"))
+
+
+ggraph(hashtags_2011, layout = "kk") +
+     geom_edges(alpha = 0.5) +
+     geom_nodes(size = 15, color = "black") +
+     geom_nodetext(aes(label = vertex.names), fontface = "bold", color = 'white') +
+    theme_blank() +
+  theme(panel.background = element_rect(fill = "gray"))
+```
+
+
+```{r}
+#2021
+ggplot(hashnet_2021, aes(x, y, xend = xend, yend = yend)) +
+     geom_edges(alpha = 0.5) +
+     geom_nodes(size = 15, color = "black") +
+     geom_nodetext(aes(label = vertex.names), fontface = "bold", color = "white") +
+    theme_blank() + 
+  theme(panel.background = element_rect(fill = "gray"))
+```
+
+
+```{r}
+x <- as.matrix(hash_2011)
+degree_x <- graph.adjacency(x, mode ="undirected", weighted = NULL)
+
+
+hash$degree = igraph::degree(degree_x)
+hash$edge <- E(degree_x)
+hash$vertex <- V(degree_x)
+# to count edges: gsize(degree_x)
+# to count verticies: gorder(degree_x)
+
+# Attach attributes to the vertices of the graph
+#V(degree_x)$age = attr$AGE[match(V(degree_x)$name, attr$ID)]
+#V(degree_x)$tenure = attr$TENURE[match(V(degree_x)$name, attr$ID)]
+#V(degree_x)$level = attr$LEVEL[match(V(degree_x)$name, attr$ID)]
+#V(degree_x)$dept = attr$DEPT[match(V(degree_x)$name, attr$ID)]
+```
+
+```{r}
+simplif
+
+set.seed(2105)
+
+net_df <- ggnetwork(x, 
+                    layout = "fruchtermanreingold", 
+                    cell.jitter = 0.75)
+```
+
+## Visualizations to include
+1) Entire 2011 hashtag network
+  - options to include/remove unconnected nodes
+2) Entire 2021 hashtag network
+  - option to include/remove unconnected nodes
+3) Option to see 2011-2021 networks
+  - option to include/remove unconnected nodes
+4) Any grouping algortihm? Girvan-Neuman or Random Walk?
+5) Option to simplify(network): simplified networks don't contain loops and multiple edges
+
+# Things to keep in mind
+1) color scheme
+2) order
+3) context / story
+
+                tabPanel("Visualization Explanation",
+                         fludrow(box(htmlOutput("network_expl"))))
+                         
+                         
+                           output$network_expl <- renderUI({
+    HTML(paste("<h2> Network Analysis </h2> <br>
+               ", sep ="<br/>"))
+  })
